@@ -3,7 +3,7 @@ from utils import get_info_sqlalchemy, extract_code_blocks
 from var import db_info, markdown_info, system_prompt_template
 from groq import Groq
 from langchain_community.utilities import SQLDatabase
-from smolagents import HfApiModel, CodeAgent, tool
+from smolagents import HfApiModel, CodeAgent, tool, LiteLLMModel, OpenAIServerModel
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -55,6 +55,11 @@ def smol_agent():
         """Return the answer to a question which will be retrieved from a database,
          which contains all the customer booking information
          The database contains information like mail, phone number, name, date, slot, booking date, booking time.
+         DO NOT ask the bookings_database to retrieve all the booking information or all the theatre bookings.
+         Example question:
+         1. What are the top 3 most booked theatres?
+         2. Who are the top 3 most visited customers?
+         3. What are the number of bookings monthly?
          Example function call
          >> bookings_database("What are the top 3 most booked theatres?")
          Args:
@@ -67,8 +72,20 @@ def smol_agent():
         result = db.run_no_throw(query)
         return result
 
+    # model = LiteLLMModel(
+    #     "ollama/qwen2.5-coder"
+    # )
+
+    # model._flatten_messages_as_text = True
+
+    model = OpenAIServerModel(
+        model_id="qwen/qwen-2.5-coder-32b-instruct:free",
+        api_base="https://openrouter.ai/api/v1",
+        api_key=os.environ['OPENROUTER_API_KEY']
+    )
+
     agent = CodeAgent(
-        tools=[bookings_database], model=HfApiModel(), max_steps=20, verbosity_level=2, additional_authorized_imports=['matplotlib.pyplot']
+        tools=[bookings_database], model=model, max_steps=20, verbosity_level=2, additional_authorized_imports=['matplotlib.pyplot', 'ast']
     )
     return agent
 
@@ -84,3 +101,5 @@ def run_smol():
 if __name__ == '__main__':
     run_smol()
     # Plot a graph for number of bookings each theatre has received
+    # Plot a graph of individual theatre month wise bookings
+    # Plot top 5 most booked theaters and top 5 most visited customers graphs side by side
