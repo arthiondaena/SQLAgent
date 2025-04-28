@@ -8,3 +8,4 @@ psycopg2
 langchain_huggingface
 unstructured[md]
 smolagents
+pandas
