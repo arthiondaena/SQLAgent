@@ -96,6 +96,12 @@ Adjust these values according to your deployment and model preferences.
 
   This agent is suited for tasks like generating code to plot graphs from SQL data.
 
+- **Streamlit UI for SmolAgents CodeAgent**
+
+  ```sh
+  streamlit run app.py
+  ```
+
 ## Notes
 
 - Ensure your `.env` variables are set correctly for database and API access.
