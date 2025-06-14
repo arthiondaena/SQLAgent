@@ -1,6 +1,7 @@
 import requests
 from langchain_community.utilities import SQLDatabase
 from langchain_community.tools.sql_database.tool import ListSQLDatabaseTool, InfoSQLDatabaseTool
+from openai import OpenAI
 from sqlalchemy import (
     create_engine,
     MetaData,
@@ -12,7 +13,11 @@ from sqlalchemy import (
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.engine import Engine
+from dotenv import dotenv_values
 import re
+import conf
+
+env = dotenv_values()
 
 def get_all_groq_model(api_key:str=None) -> list:
     """Uses Groq API to fetch all the available models."""
@@ -49,6 +54,28 @@ def validate_uri(uri:str) -> bool:
         return True
     except Exception as e:
         return False
+
+def sql_inference(prompt: str, system_prompt: str) -> str:
+    """Use the SQL_BASE_URL API to get the answer to a question"""
+    client = OpenAI(
+        base_url=conf.SQL_BASE_URL,
+        api_key=env['SQL_MODEL_API_KEY']
+    )
+    # prompt = system_prompt + "\n\n" + prompt
+    chat_completion = client.chat.completions.create(
+        model=conf.SQL_MODEL,
+        messages=[{
+            "role": "system",
+            "content": system_prompt
+        },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        max_tokens=3000,
+    )
+    return chat_completion.choices[0].message.content
 
 def get_info(uri:str) -> dict[str, str] | None:
     """Gets the dialect name, accessible tables and table schemas using the SQLDatabase toolkit"""
@@ -147,9 +174,9 @@ def extract_code_blocks(text):
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
-    import os
-    load_dotenv()
+    # import os
+    # load_dotenv()
 
     # uri = os.getenv("POSTGRES_URI")
     # print(get_info_sqlalchemy(uri))
-    print(validate_api_key(os.getenv("GROQ_API_KEY")))
+    # print(validate_api_key(os.getenv("GROQ_API_KEY")))

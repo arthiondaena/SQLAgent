@@ -1,48 +1,23 @@
-import os
-
 import conf
-from utils import get_info_sqlalchemy, extract_code_blocks
+from utils import get_info_sqlalchemy, extract_code_blocks, sql_inference
 from var import markdown_info, system_prompt_template
-from openai import OpenAI
 from smolagents import CodeAgent, tool, LiteLLMModel, OpenAIServerModel
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from sqlalchemy import create_engine, text
 from typing import List, Tuple
 
-load_dotenv()
-uri = os.environ['POSTGRES_URI']
+env = dotenv_values()
+uri = env['POSTGRES_URI']
 
 def sqlChatInfo(uri: str = None) -> str:
     """Get the information about a database in the form of a system prompt for the SQL agent"""
     if uri is None:
-        uri = os.environ['POSTGRES_URI']
+        uri = env['POSTGRES_URI']
 
     db_info = get_info_sqlalchemy(uri)
     markdown = markdown_info.format(**db_info)
     system_prompt = system_prompt_template.format(markdown_info=markdown)
     return system_prompt
-
-def inference(prompt: str, system_prompt: str) -> str:
-    """Use the SQL_BASE_URL API to get the answer to a question"""
-    client = OpenAI(
-        base_url=conf.SQL_BASE_URL,
-        api_key=os.environ['SQL_MODEL_API_KEY']
-    )
-    # prompt = system_prompt + "\n\n" + prompt
-    chat_completion = client.chat.completions.create(
-        model=conf.SQL_MODEL,
-        messages=[{
-            "role": "system",
-            "content": system_prompt
-        },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        max_tokens=3000,
-    )
-    return chat_completion.choices[0].message.content
 
 def smol_agent():
     # Helper function for bookings_database tool.
@@ -64,7 +39,7 @@ def smol_agent():
          Args:
             question: The question to be answered.
         """
-        query = inference(question, system_prompt)
+        query = sql_inference(question, system_prompt)
         query = extract_code_blocks(query)[0]
         db = create_engine(uri)
         with db.connect() as conn:
@@ -72,14 +47,21 @@ def smol_agent():
         result = [t._tuple() for t in q_result]
         return result
 
-    model = LiteLLMModel(
-        model_id=f"ollama/{conf.CODE_MODEL}",
-        api_base=conf.BASE_URL,
-        api_key=os.environ['CHAT_API_KEY'],
+    # model = LiteLLMModel(
+    #     model_id=f"ollama/{conf.CODE_MODEL}",
+    #     api_base=conf.BASE_URL,
+    #     api_key=os.environ['CHAT_API_KEY'],
+    #     keep_alive=-1
+    # )
+
+    model = OpenAIServerModel(
+        model_id=conf.CODE_MODEL_1,
+        api_base=conf.SQL_BASE_URL,
+        api_key=env['SQL_MODEL_API_KEY']
     )
 
     agent = CodeAgent(
-        tools=[bookings_database], model=model, max_steps=20, verbosity_level=2, additional_authorized_imports=['matplotlib.pyplot', 'ast', 'pandas']
+            tools=[bookings_database], model=model, max_steps=10, verbosity_level=2, additional_authorized_imports=['matplotlib.pyplot', 'ast', 'pandas']
     )
     return agent
 
@@ -90,7 +72,8 @@ def run_smol():
         if question == "quit":
             break
         # inputs = {"messages": [("user", "What are the top 3 most booked theatres and their prices?")]}
-        agent.run(question)
+        output = agent.run(question)
+        print("Agent: ", output)
 
 if __name__ == '__main__':
     # smol_agent()
